@@ -273,7 +273,7 @@ def train(train_dataloader, save_dir, save_model_every, \
                     wandb.log({"clean_images": clean_images_log})
                     wandb.log({"noisy_images": noisy_images})
                     image_decoder.train()
-    if accelerator.is_main_process and DISABLE_WANDB_IF_DDP:
+    if accelerator.is_main_process and not DISABLE_WANDB_IF_DDP:
         with torch.no_grad():
                 image_decoder.eval()
                 pipeline = DDPMPipeline(unet=image_decoder, scheduler=noise_scheduler)
