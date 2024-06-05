@@ -1,0 +1,12 @@
+usage: train.py [-h] [--dataset_name DATASET_NAME] [--input_field INPUT_FIELD]
+                [--color_mode COLOR_MODE] [--encoder_model_type ENCODER_MODEL_TYPE]
+                [--image_height IMAGE_HEIGHT] [--image_width IMAGE_WIDTH] --save_dir SAVE_DIR
+                [--split SPLIT] [--batch_size BATCH_SIZE]
+                [--gradient_accumulation_steps GRADIENT_ACCUMULATION_STEPS] [--num_epochs NUM_EPOCHS]
+                [--scheduled_sampling_weights_start SCHEDULED_SAMPLING_WEIGHTS_START [SCHEDULED_SAMPLING_WEIGHTS_START ...]]
+                [--scheduled_sampling_weights_end SCHEDULED_SAMPLING_WEIGHTS_END [SCHEDULED_SAMPLING_WEIGHTS_END ...]]
+                [--learning_rate LEARNING_RATE] [--lr_warmup_steps LR_WARMUP_STEPS]
+                [--clip_grad_norm CLIP_GRAD_NORM] [--save_model_every SAVE_MODEL_EVERY]
+                [--mixed_precision MIXED_PRECISION] [--max_input_length MAX_INPUT_LENGTH]
+                [--num_dataloader_workers NUM_DATALOADER_WORKERS] [--seed1 SEED1] [--seed2 SEED2]
+train.py: error: the following arguments are required: --save_dir

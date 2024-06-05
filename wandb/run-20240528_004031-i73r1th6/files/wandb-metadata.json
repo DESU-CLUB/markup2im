@@ -1,0 +1,147 @@
+{
+    "os": "Linux-6.2.0-39-generic-x86_64-with-glibc2.35",
+    "python": "3.10.12",
+    "heartbeatAt": "2024-05-27T16:40:32.411822",
+    "startedAt": "2024-05-27T16:40:31.674610",
+    "docker": null,
+    "cuda": null,
+    "args": [
+        "--dataset_name",
+        "yuntian-deng/im2smiles-20k",
+        "--save_dir",
+        "models/molecules"
+    ],
+    "state": "running",
+    "program": "/home/spooky/Documents/Github Projects/markup2im/src/train.py",
+    "codePathLocal": "src/train.py",
+    "codePath": "src/train.py",
+    "host": "Ghost",
+    "username": "spooky",
+    "executable": "/home/spooky/Documents/Github Projects/markup2im/markup/bin/python",
+    "cpu_count": 12,
+    "cpu_count_logical": 20,
+    "cpu_freq": {
+        "current": 2242.4921999999997,
+        "min": 800.0,
+        "max": 4700.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 803.396,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 3600.0,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 800.251,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 3600.0,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 2145.359,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 3600.0,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 799.452,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 3600.0,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 799.567,
+            "min": 800.0,
+            "max": 5000.0
+        },
+        {
+            "current": 3600.0,
+            "min": 800.0,
+            "max": 5000.0
+        },
+        {
+            "current": 2055.3,
+            "min": 800.0,
+            "max": 5000.0
+        },
+        {
+            "current": 3600.0,
+            "min": 800.0,
+            "max": 5000.0
+        },
+        {
+            "current": 2076.989,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 3600.0,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 800.0,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 3600.0,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 1249.206,
+            "min": 800.0,
+            "max": 3800.0
+        },
+        {
+            "current": 804.153,
+            "min": 800.0,
+            "max": 3800.0
+        },
+        {
+            "current": 1379.399,
+            "min": 800.0,
+            "max": 3800.0
+        },
+        {
+            "current": 1131.47,
+            "min": 800.0,
+            "max": 3800.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 732.4763107299805,
+            "used": 591.5598602294922
+        }
+    },
+    "gpu": "NVIDIA GeForce RTX 3090",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 3090",
+            "memory_total": 25769803776
+        }
+    ],
+    "memory": {
+        "total": 62.603302001953125
+    }
+}

@@ -1,0 +1,22 @@
+Using default image size for dataset yuntian-deng/im2smiles-20k
+Default image size: (128, 128)
+Using default input field for dataset yuntian-deng/im2smiles-20k
+Default input field: smiles
+Using default encoder model type for dataset yuntian-deng/im2smiles-20k
+Default encoder model type: DeepChem/ChemBERTa-77M-MLM
+Using default color mode for dataset yuntian-deng/im2smiles-20k
+Default color mode: rgb
+Some weights of RobertaModel were not initialized from the model checkpoint at DeepChem/ChemBERTa-77M-MLM and are newly initialized: ['roberta.pooler.dense.bias', 'roberta.pooler.dense.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+Some weights of RobertaModel were not initialized from the model checkpoint at DeepChem/ChemBERTa-77M-MLM and are newly initialized: ['roberta.pooler.dense.bias', 'roberta.pooler.dense.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+Epoch 0:   0%|                                                                  | 0/1121 [00:00<?, ?it/s]Traceback (most recent call last):
+  File "/home/spooky/Documents/Github Projects/markup2im/src/train.py", line 367, in <module>
+    main(args)
+  File "/home/spooky/Documents/Github Projects/markup2im/src/train.py", line 353, in main
+    train(train_dataloader, args.save_dir, args.save_model_every, \
+  File "/home/spooky/Documents/Github Projects/markup2im/src/train.py", line 189, in train
+    noisy_images_t_plus_m = noise_scheduler.add_noise(clean_images, noise, timesteps+m)
+  File "/home/spooky/Documents/Github Projects/markup2im/markup/lib/python3.10/site-packages/diffusers/schedulers/scheduling_ddpm.py", line 290, in add_noise
+    sqrt_alpha_prod = self.alphas_cumprod[timesteps] ** 0.5
+RuntimeError: indices should be either on cpu or on the same device as the indexed tensor (cpu)

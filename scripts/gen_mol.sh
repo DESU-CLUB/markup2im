@@ -1,0 +1,1 @@
+accelerate launch generate.py --dataset_name yuntian-deng/im2smiles-20k --model_path models/molecules/scheduled_sampling/model_e100_lr0.0001.pt.100 --output_dir outputs/molecules --save_intermediate_every -1
