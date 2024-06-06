@@ -7,8 +7,9 @@ import tqdm
 import argparse
 import torch.nn
 import numpy as np
-import importlib
+import re
 
+from PIL import Image
 from torch.utils.data._utils.collate import default_collate
 from torchvision import transforms
 from datasets import load_dataset, concatenate_datasets
@@ -20,6 +21,7 @@ from accelerate import Accelerator
 sys.path.insert(0, '%s'%os.path.join(os.path.dirname(__file__), '../src/'))
 from markup2im_constants import get_image_size, get_input_field, get_encoder_model_type, get_color_mode
 from markup2im_models import create_image_decoder, encode_text
+
 
 #TODO: make it neater
 def process_args(args):
@@ -52,14 +54,8 @@ def process_args(args):
     parameters = parser.parse_args(args)
     return parameters
 
-# def convert_latent
-# def compare_latent():
-#     """
-#     Compares 2 images in their latent form and returns the KL divergence between them
 
-#     :output: KL divergence between 2 images
-#     """
-def generate_latent(image_dir, image_size, color_channels, encoder_model_type):
+def generate_latent(dataset_name, image_dir, image_size, color_channels, encoder_model_type):
 
     # if args.encoder_model_type is not None:
     #     encoder_model_type = args.encoder_model_type
@@ -74,49 +70,94 @@ def generate_latent(image_dir, image_size, color_channels, encoder_model_type):
     gold_files = sorted(os.listdir(gold_image_dir))
     pred_files = sorted(os.listdir(pred_image_dir))
     matched_files = zip(gold_files, pred_files)
-
+    tokenizer = AutoTokenizer.from_pretrained(encoder_model_type)
     text_encoder = AutoModel.from_pretrained(encoder_model_type).cuda()
+
     # forward a fake batch to figure out cross_attention_dim
     hidden_states = encode_text(text_encoder, torch.zeros(1,1).long().cuda(), None)
     cross_attention_dim = hidden_states.shape[-1]
-
     image_decoder = create_image_decoder(image_size=image_size, color_channels=color_channels, \
             cross_attention_dim=cross_attention_dim)
     image_decoder = image_decoder.cuda()
-   
+    
+    dataset = load_dataset(dataset_name,split="test") #for caching
+
+    FILE_PATH_TO_SMILES = {}
+    iter = dataset.iter(batch_size=1)
+    for i in iter:
+        path = i["filename"][0]
+        smile = i["smiles"][0]
+        FILE_PATH_TO_SMILES[path] = smile
+    
+    #idea: given file_name, we can extract out the attention from tokenizer
+    idx = 0
     # Iterate over matched files
     for gold_file, pred_file in matched_files:
         # Construct full paths
         gold_file_path = os.path.join(gold_image_dir, gold_file)
         pred_file_path = os.path.join(pred_image_dir, pred_file)
-        print(dir(image_decoder))  # This will print all attributes and methods of the instance
-        if 'encode' in dir(image_decoder):
-            print("Encode method is available")
-        else:
-            print("Encode method is not available, check the class definition and imports.")
-        print(image_decoder.encode(gold_file_path))
+        file_name = re.search(r"\/([^\/]*)$",gold_file_path).group(1)
+        smiles_formula = FILE_PATH_TO_SMILES[file_name]
+        tokenized_formula = tokenizer(smiles_formula, truncation=True, max_length=1024)
+        input_ids = torch.LongTensor(tokenized_formula['input_ids'])
+        input_ids = input_ids.unsqueeze(0).cuda()
+        attention_mask = torch.FloatTensor(tokenized_formula['attention_mask']).unsqueeze(0).cuda()
+        encoded_text = encode_text(text_encoder, input_ids, attention_mask)
+
+        gold_image = Image.open(gold_file_path)
+        pred_image = Image.open(pred_file_path)
+        transform = transforms.Compose([
+            transforms.Lambda(lambda img: torch.from_numpy(np.array(img).astype(np.float32)).permute(2, 0, 1).unsqueeze(0))])
+        gold_tensor = transform(gold_image)
+        pred_tensor = transform(pred_image)
+
+        gold_latent = image_decoder.encode(
+            sample=gold_tensor.cuda(),
+            encoder_hidden_states=encoded_text.squeeze(2).cuda(),
+            attention_mask = attention_mask.cuda()
+        )
+        pred_latent = image_decoder.encode(
+            sample = pred_tensor.cuda(),
+            encoder_hidden_states=encoded_text.squeeze(2).cuda(),
+            attention_mask = attention_mask.cuda()
+        )
+        if(idx > 0 and idx % 50 == 0):
+            #measure kl divergence
+            original_gold_shape = gold_latent.shape
+            original_pred_shape = pred_latent.shape
+            gold_latent = torch.nn.functional.log_softmax(gold_latent.squeeze(0).reshape(-1))
+            pred_latent = torch.nn.functional.log_softmax(pred_latent.squeeze(0).reshape(-1))
+            
+            gold_latent = gold_latent.reshape(original_gold_shape)
+            pred_latent = pred_latent.reshape(original_pred_shape)
+
+            #check
+
+            kl_loss = torch.nn.functional.kl_div(pred_latent, gold_latent,log_target=True)
+            
+            print(idx)
+            print("KL Loss is" + str(kl_loss))
+        idx += 1
+
         
-       
-    # Add error handling if the number of files or file names do not match
-    if len(gold_files) != len(pred_files):
-        print("Warning: The number of files in gold and pred directories do not match.")
 
 
 def main(args):
 
     image_dir = args.image_dir
+    dataset_name = args.dataset_name
 
     if (args.image_height is not None) and (args.image_width is not None):
         image_size = (args.image_height, args.image_width)
     else:
-        print (f'Using default image size for dataset {args.dataset_name}')
-        image_size = get_image_size(args.dataset_name)
+        print (f'Using default image size for dataset {dataset_name}')
+        image_size = get_image_size(dataset_name)
         print (f'Default image size: {image_size}')
     if args.color_mode is not None:
         color_mode = args.color_mode
     else:
-        print (f'Using default color mode for dataset {args.dataset_name}')
-        color_mode = get_color_mode(args.dataset_name)
+        print (f'Using default color mode for dataset {dataset_name}')
+        color_mode = get_color_mode(dataset_name)
         print (f'Default color mode: {color_mode}')
     args.color_mode = color_mode 
     assert args.color_mode in ['grayscale', 'rgb']
@@ -128,10 +169,10 @@ def main(args):
     if args.encoder_model_type is not None:
         encoder_model_type = args.encoder_model_type
     else:
-        print (f'Using default encoder model type for dataset {args.dataset_name}')
-        encoder_model_type = get_encoder_model_type(args.dataset_name)
+        print (f'Using default encoder model type for dataset {dataset_name}')
+        encoder_model_type = get_encoder_model_type(dataset_name)
         print (f'Default encoder model type: {encoder_model_type}')
-    generate_latent(image_dir, image_size, color_channels, encoder_model_type)
+    generate_latent(dataset_name, image_dir, image_size, color_channels, encoder_model_type)
     
 
 

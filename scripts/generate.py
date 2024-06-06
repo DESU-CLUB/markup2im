@@ -16,7 +16,6 @@ from diffusers import UNet2DConditionModel
 from diffusers import DDPMScheduler
 from diffusers import DDPMPipeline, LDMPipeline
 from accelerate import Accelerator
-from vector_quantize_pytorch import VectorQuantize
 sys.path.insert(0, '%s'%os.path.join(os.path.dirname(__file__), '../src/'))
 from markup2im_constants import get_image_size, get_input_field, get_encoder_model_type, get_color_mode
 from markup2im_models import create_image_decoder, encode_text
@@ -235,7 +234,7 @@ def main(args):
     
     torch.manual_seed(args.seed2)
     random.seed(args.seed2)
-    np.random.seed(args.seed2)
+    np.random.seed(args.seed2 )
 
     eval_dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, worker_init_fn=np.random.seed(0), num_workers=0)
 

@@ -38,6 +38,7 @@ def create_image_decoder(image_size, color_channels, cross_attention_dim):
 def encode_text(text_encoder, input_ids, attention_mask, no_grad=True):
     if no_grad:
         with torch.no_grad():
+            
             outputs = text_encoder(input_ids=input_ids, attention_mask=attention_mask)
             last_hidden_state = outputs.last_hidden_state 
             if attention_mask is not None:
