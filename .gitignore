@@ -2,4 +2,7 @@ models
 markup
 src/wandb
 scripts/outputs
+.venv
+outputs/__MACOSX
+.DS_Store
 

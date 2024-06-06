@@ -225,7 +225,6 @@ def main(args):
             example_out['input_ids'] = torch.LongTensor(formula)
             attention_mask = example['attention_mask'] + [1,] + [0,] * (max_len - orig_len - 1)
             example_out['attention_mask'] = torch.LongTensor(attention_mask)
-            #example_out['images'] = example['images']
             examples_out.append(example_out)
         batch = default_collate(examples_out)
         filenames = [example['filenames'] for example in examples]
