@@ -1,4 +1,5 @@
 transformers
 datasets
 accelerate
+wandb
 git+https://github.com/da03/diffusers

@@ -8,6 +8,7 @@ import argparse
 import torch.nn
 import numpy as np
 import re
+import wandb
 
 from PIL import Image
 from torch.utils.data._utils.collate import default_collate
@@ -121,22 +122,27 @@ def generate_latent(dataset_name, image_dir, image_size, color_channels, encoder
             encoder_hidden_states=encoded_text.squeeze(2).cuda(),
             attention_mask = attention_mask.cuda()
         )
-        if(idx > 0 and idx % 50 == 0):
-            #measure kl divergence
-            original_gold_shape = gold_latent.shape
-            original_pred_shape = pred_latent.shape
-            gold_latent = torch.nn.functional.log_softmax(gold_latent.squeeze(0).reshape(-1))
-            pred_latent = torch.nn.functional.log_softmax(pred_latent.squeeze(0).reshape(-1))
+        #measure kl divergence
+        original_gold_shape = gold_latent.shape
+        original_pred_shape = pred_latent.shape
+        gold_latent = torch.nn.functional.log_softmax(gold_latent.squeeze(0).reshape(-1))
+        pred_latent = torch.nn.functional.log_softmax(pred_latent.squeeze(0).reshape(-1))
             
-            gold_latent = gold_latent.reshape(original_gold_shape)
-            pred_latent = pred_latent.reshape(original_pred_shape)
+        gold_latent = gold_latent.reshape(original_gold_shape)
+        pred_latent = pred_latent.reshape(original_pred_shape)
 
-            #check
+        #check
 
-            kl_loss = torch.nn.functional.kl_div(pred_latent, gold_latent,log_target=True)
+        kl_loss = torch.nn.functional.kl_div(pred_latent, gold_latent,log_target=True)
             
-            print(idx)
-            print("KL Loss is" + str(kl_loss))
+        print(idx)
+        wandb.log({
+            "index":idx,
+            "path":file_name,
+            "kl-div":kl_loss.item(),
+            "true-image":wandb.Image(gold_image, caption=f"{file_name} actual"),
+            "predicted-image":wandb.Image(pred_image, caption=f"{file_name} predicted")
+            })
         idx += 1
 
         
@@ -172,7 +178,14 @@ def main(args):
         print (f'Using default encoder model type for dataset {dataset_name}')
         encoder_model_type = get_encoder_model_type(dataset_name)
         print (f'Default encoder model type: {encoder_model_type}')
+    wandb.init(
+        project="odys-latent",
+        config={
+            "dataset":"im2smiles-20k"
+        }
+    )
     generate_latent(dataset_name, image_dir, image_size, color_channels, encoder_model_type)
+    wandb.finish()
     
 
 

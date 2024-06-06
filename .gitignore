@@ -1,8 +1,9 @@
 models
 markup
+wandb
 src/wandb
 scripts/outputs
 .venv
 outputs/__MACOSX
 .DS_Store
-
+.log
