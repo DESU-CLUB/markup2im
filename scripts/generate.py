@@ -122,13 +122,32 @@ def evaluate(dataloader, tokenizer, text_encoder, pipeline, output_dir, num_batc
             formula = tokenizer.decode(input_id, skip_special_symbols=True).replace('<|endoftext|>', '')
             print (f'{iii:04d}: {formula}')
             print ()
+
         swap_step = -1
         t = 0
+        #code for run_clean
+        """
         for _, pred_images in pipeline.run_clean(
             batch_size = input_ids.shape[0],
             generator=torch.manual_seed(0),
             encoder_hidden_states = encoder_hidden_states,
             attention_mask=masks,
+            swap_step=swap_step,
+            ):
+            pred_images = pipeline.numpy_to_pil(pred_images)
+            if save_intermediate_every > 0:
+                if t % save_intermediate_every == 0:
+                    for filename, gold_image, pred_image in zip(filenames, gold_images, pred_images):
+                        pred_image.save(os.path.join(pred_dir, filename + f'_{t:04d}.png'))
+            t += 1
+        """
+
+        for _, pred_images in pipeline.clean_noisy(
+            batch_size = input_ids.shape[0],
+            generator=torch.manual_seed(0),
+            encoder_hidden_states = encoder_hidden_states,
+            attention_mask=masks,
+            ground_truth_images=gold_images.cuda(),
             swap_step=swap_step,
             ):
             pred_images = pipeline.numpy_to_pil(pred_images)
