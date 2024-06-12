@@ -6,6 +6,7 @@ import torch
 import tqdm
 import argparse
 import torch.nn
+import wandb
 import numpy as np
 
 from torch.utils.data._utils.collate import default_collate
@@ -142,6 +143,12 @@ def evaluate(dataloader, tokenizer, text_encoder, pipeline, output_dir, num_batc
             pred_image.save(os.path.join(pred_dir, filename))
         if step == num_batches-1:
             break
+        wandb.log({
+            "index":step,
+            "path":filename,
+            "true-image":wandb.Image(gold_image, caption=f"{filename} actual"),
+            "predicted-image":wandb.Image(pred_image, caption=f"{filename} predicted")
+            })
 
         print ('='*10)
 
@@ -181,6 +188,12 @@ def main(args):
     else:
         args.color_channels = 3
 
+    wandb.init(
+        project="odys-latent",
+        config={
+            "dataset":"im2smiles-20k"
+        }
+    )
     # Load data
     dataset = load_dataset(args.dataset_name, split=args.split)
     dataset = dataset.shuffle(seed=args.seed1)
@@ -250,7 +263,7 @@ def main(args):
     pipeline = load_pipeline(image_decoder, args.model_path)
     
     evaluate(eval_dataloader, tokenizer, text_encoder, pipeline, args.output_dir, args.num_batches, args.save_intermediate_every)
-
+    wandb.finish()
 
 if __name__ == '__main__':
     args = process_args(sys.argv[1:])
