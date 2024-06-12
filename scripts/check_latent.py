@@ -56,33 +56,65 @@ def process_args(args):
     return parameters
 
 
+def load_and_tokenize_text(encoder_model_type, smiles_formula):
+    tokenizer = AutoTokenizer.from_pretrained(encoder_model_type)
+    text_encoder = AutoModel.from_pretrained(encoder_model_type).cuda()
+    tokenized_formula = tokenizer(smiles_formula, truncation=True, max_length=1024)
+    input_ids = torch.LongTensor(tokenized_formula['input_ids']).unsqueeze(0).cuda()
+    attention_mask = torch.FloatTensor(tokenized_formula['attention_mask']).unsqueeze(0).cuda()
+    encoded_text = encode_text(text_encoder, input_ids, attention_mask)
+    return encoded_text, attention_mask
+
+def process_image(image_path, transform):
+    image = Image.open(image_path)
+    image_tensor = transform(image)
+    return image_tensor
+
+def encode_images(image_decoder, image_tensor, encoded_text, attention_mask):
+    latent = image_decoder.encode(
+        sample=image_tensor.cuda(),
+        encoder_hidden_states=encoded_text.squeeze(2).cuda(),
+        attention_mask=attention_mask.cuda()
+    )
+    return latent
+
+def calculate_kl_divergence(gold_latent, pred_latent):
+
+    # Compute log softmax over the last dimension
+    gold_latent = torch.nn.functional.log_softmax(gold_latent, dim=-1)
+    pred_latent = torch.nn.functional.log_softmax(pred_latent, dim=-1)
+    
+    # Calculate KL divergence with batchmean reduction
+    kl_loss = torch.nn.functional.kl_div(pred_latent, gold_latent, reduction='batchmean', log_target=True)
+
+    return kl_loss
+
+
+def log_results(idx, file_name, kl_loss, gold_image, pred_image, gold_latent, pred_latent):
+    wandb.log({
+        "index": idx,
+        "path": file_name,
+        "kl-div": kl_loss.item(),
+        "true-image": wandb.Image(gold_image, caption=f"{file_name} actual"),
+        "true-latent": gold_latent.cpu().detach().numpy(),
+        "predicted-image": wandb.Image(pred_image, caption=f"{file_name} predicted"),
+        "predicted-latent": pred_latent.cpu().detach().numpy()
+    })
+
 def generate_latent(dataset_name, image_dir, image_size, color_channels, encoder_model_type):
-
-    # if args.encoder_model_type is not None:
-    #     encoder_model_type = args.encoder_model_type
-    # else:
-    #     print (f'Using default encoder model type for dataset {args.dataset_name}')
-    #     encoder_model_type = get_encoder_model_type(args.dataset_name)
-    #     print (f'Default encoder model type: {encoder_model_type}')
-    # args.encoder_model_type = encoder_model_type
-
     gold_image_dir = os.path.join(image_dir, "images_gold")
     pred_image_dir = os.path.join(image_dir, "images_pred")
     gold_files = sorted(os.listdir(gold_image_dir))
     pred_files = sorted(os.listdir(pred_image_dir))
     matched_files = zip(gold_files, pred_files)
-    tokenizer = AutoTokenizer.from_pretrained(encoder_model_type)
+    
     text_encoder = AutoModel.from_pretrained(encoder_model_type).cuda()
-
-    # forward a fake batch to figure out cross_attention_dim
-    hidden_states = encode_text(text_encoder, torch.zeros(1,1).long().cuda(), None)
+    hidden_states = encode_text(text_encoder, torch.zeros(1, 1).long().cuda(), None)
     cross_attention_dim = hidden_states.shape[-1]
-    image_decoder = create_image_decoder(image_size=image_size, color_channels=color_channels, \
-            cross_attention_dim=cross_attention_dim)
+    image_decoder = create_image_decoder(image_size=image_size, color_channels=color_channels, cross_attention_dim=cross_attention_dim)
     image_decoder = image_decoder.cuda()
     
-    dataset = load_dataset(dataset_name,split="test") #for caching
-
+    dataset = load_dataset(dataset_name, split="test")
     FILE_PATH_TO_SMILES = {}
     iter = dataset.iter(batch_size=1)
     for i in iter:
@@ -90,61 +122,27 @@ def generate_latent(dataset_name, image_dir, image_size, color_channels, encoder
         smile = i["smiles"][0]
         FILE_PATH_TO_SMILES[path] = smile
     
-    #idea: given file_name, we can extract out the attention from tokenizer
+    transform = transforms.Compose([transforms.Lambda(lambda img: torch.from_numpy(np.array(img).astype(np.float32)).permute(2, 0, 1).unsqueeze(0))])
+    
     idx = 0
-    # Iterate over matched files
     for gold_file, pred_file in matched_files:
-        # Construct full paths
         gold_file_path = os.path.join(gold_image_dir, gold_file)
         pred_file_path = os.path.join(pred_image_dir, pred_file)
-        file_name = re.search(r"\/([^\/]*)$",gold_file_path).group(1)
+        file_name = re.search(r"\/([^\/]*)$", gold_file_path).group(1)
         smiles_formula = FILE_PATH_TO_SMILES[file_name]
-        tokenized_formula = tokenizer(smiles_formula, truncation=True, max_length=1024)
-        input_ids = torch.LongTensor(tokenized_formula['input_ids'])
-        input_ids = input_ids.unsqueeze(0).cuda()
-        attention_mask = torch.FloatTensor(tokenized_formula['attention_mask']).unsqueeze(0).cuda()
-        encoded_text = encode_text(text_encoder, input_ids, attention_mask)
-
-        gold_image = Image.open(gold_file_path)
-        pred_image = Image.open(pred_file_path)
-        transform = transforms.Compose([
-            transforms.Lambda(lambda img: torch.from_numpy(np.array(img).astype(np.float32)).permute(2, 0, 1).unsqueeze(0))])
-        gold_tensor = transform(gold_image)
-        pred_tensor = transform(pred_image)
-
-        gold_latent = image_decoder.encode(
-            sample=gold_tensor.cuda(),
-            encoder_hidden_states=encoded_text.squeeze(2).cuda(),
-            attention_mask = attention_mask.cuda()
-        )
-        pred_latent = image_decoder.encode(
-            sample = pred_tensor.cuda(),
-            encoder_hidden_states=encoded_text.squeeze(2).cuda(),
-            attention_mask = attention_mask.cuda()
-        )
-        #measure kl divergence
-        original_gold_shape = gold_latent.shape
-        original_pred_shape = pred_latent.shape
-        gold_latent = torch.nn.functional.log_softmax(gold_latent.squeeze(0).reshape(-1))
-        pred_latent = torch.nn.functional.log_softmax(pred_latent.squeeze(0).reshape(-1))
-            
-        gold_latent = gold_latent.reshape(original_gold_shape)
-        pred_latent = pred_latent.reshape(original_pred_shape)
-
-        #check
-
-        kl_loss = torch.nn.functional.kl_div(pred_latent, gold_latent,log_target=True)
-            
-        print(idx)
-        wandb.log({
-            "index":idx,
-            "path":file_name,
-            "kl-div":kl_loss.item(),
-            "true-image":wandb.Image(gold_image, caption=f"{file_name} actual"),
-            "predicted-image":wandb.Image(pred_image, caption=f"{file_name} predicted")
-            })
+        
+        encoded_text, attention_mask = load_and_tokenize_text(encoder_model_type, smiles_formula)
+        
+        gold_tensor = process_image(gold_file_path, transform)
+        pred_tensor = process_image(pred_file_path, transform)
+        
+        gold_latent = encode_images(image_decoder, gold_tensor, encoded_text, attention_mask)
+        pred_latent = encode_images(image_decoder, pred_tensor, encoded_text, attention_mask)
+        
+        kl_loss = calculate_kl_divergence(gold_latent, pred_latent)
+        
+        log_results(idx, file_name, kl_loss, gold_file_path, pred_file_path, gold_latent, pred_latent)
         idx += 1
-
         
 
 
