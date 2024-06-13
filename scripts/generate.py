@@ -125,6 +125,11 @@ def evaluate(dataloader, tokenizer, text_encoder, pipeline, output_dir, num_batc
 
         swap_step = -1
         t = 0
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+        ])
+        ground_images = [transform(image) for image in gold_images]
+        ground_images = torch.stack(ground_images).to('cuda')
         #code for run_clean
         """
         for _, pred_images in pipeline.run_clean(
@@ -147,7 +152,7 @@ def evaluate(dataloader, tokenizer, text_encoder, pipeline, output_dir, num_batc
             generator=torch.manual_seed(0),
             encoder_hidden_states = encoder_hidden_states,
             attention_mask=masks,
-            ground_truth_images=gold_images.cuda(),
+            ground_truth_images= ground_images,
             swap_step=swap_step,
             ):
             pred_images = pipeline.numpy_to_pil(pred_images)
