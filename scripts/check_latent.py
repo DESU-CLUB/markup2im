@@ -13,18 +13,44 @@ import wandb
 from PIL import Image
 from torch.utils.data._utils.collate import default_collate
 from torchvision import transforms
+
 from datasets import load_dataset, concatenate_datasets
 from transformers import AutoTokenizer, AutoModel
 from diffusers import UNet2DConditionModel
 from diffusers import DDPMScheduler
 from diffusers import DDPMPipeline, LDMPipeline
 from accelerate import Accelerator
+from torchmetrics.image.fid import FrechetInceptionDistance
+
 sys.path.insert(0, '%s'%os.path.join(os.path.dirname(__file__), '../src/'))
 from markup2im_constants import get_image_size, get_input_field, get_encoder_model_type, get_color_mode
 from markup2im_models import create_image_decoder, encode_text
 
 
-#TODO: make it neater
+
+def set_random_seeds(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+def calculate_fid(gold_images, pred_images):
+    fid_metric = FrechetInceptionDistance(feature=2048).cuda()
+    gold_images = gold_images.to(torch.uint8).cuda()
+    pred_images = pred_images.to(torch.uint8).cuda()
+    print(gold_images.shape)
+    print(pred_images.shape)
+    fid_metric.update(gold_images, real=True)
+    fid_metric.update(pred_images, real=False)
+    
+    fid = fid_metric.compute().item()
+    return fid
+
 def process_args(args):
     parser = argparse.ArgumentParser(description="Compare the latent forms of two sets of images")
 #     parser.add_argument('--dataset_name',
@@ -125,7 +151,10 @@ def generate_latent(dataset_name, image_dir, image_size, color_channels, encoder
     transform = transforms.Compose([transforms.Lambda(lambda img: torch.from_numpy(np.array(img).astype(np.float32)).permute(2, 0, 1).unsqueeze(0))])
     
     idx = 0
-    for gold_file, pred_file in matched_files:
+    all_gold_images = []
+    all_pred_images = []
+    kl_divergences = []
+    for gold_file, pred_file in tqdm.tqdm(matched_files, total=len(gold_files), desc="Processing images"):
         gold_file_path = os.path.join(gold_image_dir, gold_file)
         pred_file_path = os.path.join(pred_image_dir, pred_file)
         file_name = re.search(r"\/([^\/]*)$", gold_file_path).group(1)
@@ -140,14 +169,26 @@ def generate_latent(dataset_name, image_dir, image_size, color_channels, encoder
         pred_latent = encode_images(image_decoder, pred_tensor, encoded_text, attention_mask)
         
         kl_loss = calculate_kl_divergence(gold_latent, pred_latent)
-        
-        log_results(idx, file_name, kl_loss, gold_file_path, pred_file_path, gold_latent, pred_latent)
+       
+        all_gold_images.append(gold_tensor)
+        all_pred_images.append(pred_tensor)
+        log_results(idx, file_name, kl_loss, gold_tensor, pred_tensor, gold_latent, pred_latent)
+            
         idx += 1
-        
+    gold_images_tensor = torch.stack(all_gold_images).squeeze(1)
+    pred_images_tensor = torch.stack(all_pred_images).squeeze(1)
+    overall_fid = calculate_fid(gold_images_tensor, pred_images_tensor)
+    average_kl = np.mean(kl_divergences)
+    print(f"Overall FID: {overall_fid}")
+    wandb.log({
+        "Overall FID": overall_fid,
+        "Average KL divergence":average_kl
+    })
+
 
 
 def main(args):
-
+    set_random_seeds()
     image_dir = args.image_dir
     dataset_name = args.dataset_name
 
@@ -184,9 +225,6 @@ def main(args):
     )
     generate_latent(dataset_name, image_dir, image_size, color_channels, encoder_model_type)
     wandb.finish()
-    
-
-
 
 if __name__ == '__main__':
     args = process_args(sys.argv[1:])
