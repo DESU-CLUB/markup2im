@@ -21,6 +21,7 @@ from diffusers import DDPMScheduler
 from diffusers import DDPMPipeline, LDMPipeline
 from accelerate import Accelerator
 from torchmetrics.image.fid import FrechetInceptionDistance
+from scipy.spatial import distance
 
 sys.path.insert(0, '%s'%os.path.join(os.path.dirname(__file__), '../src/'))
 from markup2im_constants import get_image_size, get_input_field, get_encoder_model_type, get_color_mode
@@ -50,6 +51,20 @@ def calculate_fid(gold_images, pred_images):
     
     fid = fid_metric.compute().item()
     return fid
+
+def calculate_js(gold_images, pred_images):
+    gold_image_array = gold_images.detach().cpu().numpy()
+    pred_image_array = pred_images.detach().cpu().numpy()
+    jsd_matrix = distance.jensenshannon(gold_image_array, pred_image_array)
+    # Mean - average distance between 2 distribution (average dissimilarity)
+    aggregated_distance_mean = np.mean(jsd_matrix)
+
+    # Sum - total distance (total dissimilarity)
+    aggregated_distance_sum = np.sum(jsd_matrix)
+
+    # Max - max distance (highest dissimilarity)
+    aggregated_distance_max = np.max(jsd_matrix)
+    return aggregated_distance_max
 
 def process_args(args):
     parser = argparse.ArgumentParser(description="Compare the latent forms of two sets of images")
@@ -178,10 +193,12 @@ def generate_latent(dataset_name, image_dir, image_size, color_channels, encoder
     gold_images_tensor = torch.stack(all_gold_images).squeeze(1)
     pred_images_tensor = torch.stack(all_pred_images).squeeze(1)
     overall_fid = calculate_fid(gold_images_tensor, pred_images_tensor)
+    overall_jsd = calculate_js(gold_images_tensor, pred_images_tensor)
     average_kl = np.mean(kl_divergences)
-    print(f"Overall FID: {overall_fid}")
+    print(f"Overall jsd: {overall_jsd}")
     wandb.log({
         "Overall FID": overall_fid,
+        "Overall JSD": overall_jsd,
         "Average KL divergence":average_kl
     })
 
