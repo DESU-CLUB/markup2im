@@ -21,6 +21,7 @@ from diffusers import DDPMScheduler
 from diffusers import DDPMPipeline, LDMPipeline
 from accelerate import Accelerator
 from torchmetrics.image.fid import FrechetInceptionDistance
+from torchmetrics.image.fid import KernelInceptionDistance
 from scipy.spatial import distance
 
 sys.path.insert(0, '%s'%os.path.join(os.path.dirname(__file__), '../src/'))
@@ -51,6 +52,20 @@ def calculate_fid(gold_images, pred_images):
     
     fid = fid_metric.compute().item()
     return fid
+
+def calculate_kid(gold_images, pred_images):
+    kid_metric = KernelInceptionDistance(feature=2048, subset_size=4).cuda()
+    gold_images = gold_images.to(torch.uint8).cuda()
+    pred_images = pred_images.to(torch.uint8).cuda()
+    print(gold_images.shape)
+    print(pred_images.shape)
+    kid_metric.update(gold_images, real=True)
+    kid_metric.update(pred_images, real=False)
+    
+    kid_mean, kid_std = kid_metric.compute()
+    print("Mean KID:", kid_mean.item())
+    print("Standard Deviation of KID:", kid_std.item())
+    return kid_mean.item()
 
 def calculate_js(gold_images, pred_images):
     gold_image_array = gold_images.detach().cpu().numpy()
@@ -193,11 +208,13 @@ def generate_latent(dataset_name, image_dir, image_size, color_channels, encoder
     gold_images_tensor = torch.stack(all_gold_images).squeeze(1)
     pred_images_tensor = torch.stack(all_pred_images).squeeze(1)
     overall_fid = calculate_fid(gold_images_tensor, pred_images_tensor)
+    overall_kid = calculate_kid(gold_images_tensor, pred_images_tensor)
     overall_jsd = calculate_js(gold_images_tensor, pred_images_tensor)
     average_kl = np.mean(kl_divergences)
-    print(f"Overall jsd: {overall_jsd}")
+    print(f"Overall kid: {overall_kid}")
     wandb.log({
         "Overall FID": overall_fid,
+        "Overall KID": overall_kid,
         "Overall JSD": overall_jsd,
         "Average KL divergence":average_kl
     })
