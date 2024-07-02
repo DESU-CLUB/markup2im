@@ -22,6 +22,7 @@ from diffusers import DDPMPipeline, LDMPipeline
 from accelerate import Accelerator
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchmetrics.image.fid import KernelInceptionDistance
+from torchvision.transforms import Resize
 from scipy.spatial import distance
 
 sys.path.insert(0, '%s'%os.path.join(os.path.dirname(__file__), '../src/'))
@@ -54,11 +55,17 @@ def calculate_fid(gold_images, pred_images):
     return fid
 
 def calculate_kid(gold_images, pred_images):
-    kid_metric = KernelInceptionDistance(feature=2048, subset_size=4).cuda()
+    kid_metric = KernelInceptionDistance(feature=2048, subset_size=10, normalize=False).cuda()
     gold_images = gold_images.to(torch.uint8).cuda()
     pred_images = pred_images.to(torch.uint8).cuda()
-    print(gold_images.shape)
-    print(pred_images.shape)
+    # gold_images = gold_images/255.0
+    # pred_images = pred_images/255.0
+
+    resize_transform = Resize((299, 299))
+    kid_gold = resize_transform(gold_images)
+    kid_pred = resize_transform(pred_images)
+    print(kid_gold.shape)
+    print(kid_pred.shape)
     kid_metric.update(gold_images, real=True)
     kid_metric.update(pred_images, real=False)
     
