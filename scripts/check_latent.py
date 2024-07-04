@@ -21,7 +21,7 @@ from diffusers import DDPMScheduler
 from diffusers import DDPMPipeline, LDMPipeline
 from accelerate import Accelerator
 from torchmetrics.image.fid import FrechetInceptionDistance
-from torchmetrics.image.fid import KernelInceptionDistance
+from torchmetrics.image.kid import KernelInceptionDistance
 from torchvision.transforms import Resize
 from scipy.spatial import distance
 
